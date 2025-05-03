@@ -9,11 +9,12 @@ export default function Home() {
               Default Button
           </Button>
 
+
           {/* Other button variants */}
           <Button variant="secondary" size="sm">
               Secondary Button
           </Button>
       </div>
-
+      
   );
 }
