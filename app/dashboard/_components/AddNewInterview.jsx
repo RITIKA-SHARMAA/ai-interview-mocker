@@ -9,61 +9,91 @@ import {
     DialogTrigger,
 } from "../../../components/dialog.jsx";
 import {Button} from "../../../components/ui/Button";
+import {LoaderCircle} from "lucide-react";
+import {MockInterview} from "../../../utils/schema";
+import {v4 as uuidv4} from "uuid";
+import {useUser} from "@clerk/nextjs";
+import moment from "moment";
+import {db} from "../../../utils/db";
+import {useRouter} from "next/navigation";
 
-import { sendPromptToGemini } from '../../../utils/GeminiAIModel';
-import {chatSession} from "../../../lib/GeminiAIModel";
 function AddNewInterview (){
     const [openDialog, setOpenDialog] = React.useState(false);
     const [jobPosition, setJobPosition] = React.useState();
     const [jobDescription, setJobDescription] = React.useState();
     const [yearsOfExperience, setYearsOfExperience] = React.useState();
-
-    //
-    // const onSubmit = async (e) => {
-    //     e.preventDefault();
-    //     setOpenDialog(false);
-    //     console.log(jobPosition, jobDescription, yearsOfExperience);
-    //
-    //     const InputPrompt = `Assume the role of a highly skilled ${jobPosition} with ${yearsOfExperience} years of experience. Based on the following job description: "${jobDescription}", generate a comprehensive list of ${process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT} insightful interview questions tailored to this role. Ensure the questions cover both technical expertise and role-specific problem-solving skills.`;
-    //
-    //
-    //     // try {
-    //     //     const response = await fetch("/api/generateInterviewQuestions", {
-    //     //         method: "POST",
-    //     //         headers: { "Content-Type": "application/json" },
-    //     //         body: JSON.stringify({ prompt }),
-    //     //     });
-    //     //
-    //     //     const data = await response.json();
-    //     //     console.log("Interview Questions:", data.result);
-    //     // } catch (err) {
-    //     //     console.error("API call failed:", err);
-    //     // }
-    //     const result=await chatSession.sendMessage (InputPrompt) ;
-    //     const MockJsonResp=(result. response. text()). replace("```json',",''). replace('```','');
-    //     console. log (JSON. parse(MockJsonResp)) ;
-    // }
+    const [loading, setLoading] = React.useState(false);
+    const [jsonResponse, setJsonResponse] = React.useState([]);
+    const {user} = useUser();
+    const router = useRouter();
 
     const onSubmit = async (e) => {
         e.preventDefault();
-        setOpenDialog(false);
+        setLoading(true);
         console.log(jobPosition, jobDescription, yearsOfExperience);
 
-        const InputPrompt = `Assume the role of a highly skilled ${jobPosition} with ${yearsOfExperience} years of experience. Based on the following job description: "${jobDescription}", generate a comprehensive list of ${process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT} insightful interview questions tailored to this role. Ensure the questions cover both technical expertise and role-specific problem-solving skills.`;
+        const InputPrompt = `Assume the role of a highly skilled ${jobPosition} with ${yearsOfExperience} years of experience. 
+Based on the following job description: "${jobDescription}", generate a comprehensive list of ${process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT}
+insightful interview questions tailored to this role. Ensure the questions cover both technical expertise and role-specific problem-solving skills.`;
 
         try {
             const response = await fetch("/api/generateInterviewQuestions", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: InputPrompt }),
+                body: JSON.stringify({
+                    prompt: InputPrompt,
+                    jobPosition,
+                    jobDescription,
+                    yearsOfExperience,
+                    userEmail: user?.primaryEmailAddress?.emailAddress,
+                }),
             });
 
             const data = await response.json();
-            console.log("Interview Questions:", data.result);
+            // console.log("Interview Questions:", data.result);
+            // console.log("Mock Interview ID from API:", data.mockId);
+
+            if (response.ok) {
+                const dbResponse = await db.insert(MockInterview).values({
+                    mockId: uuidv4(),
+                    jsonMockResp: JSON.stringify(
+                        data.result
+                            .split('\n')
+                            .filter((line) => line.trim() !== '')
+                            .map((q) => ({ question: q.replace(/^\d+[.)]\s*/, '') })) // remove numbering
+                    ),
+                    jobPosition,
+                    jobDesc: jobDescription,
+                    jobExp: yearsOfExperience,
+                    createdBy: user?.primaryEmailAddress?.emailAddress,
+                    createdAt: moment().format('DD-MM-YYYY'),
+                }).returning({ mockId: MockInterview.mockId });
+
+                console.log("Full DB Insert Response:", dbResponse);
+
+                const insertedMockId = dbResponse[0]?.mockId;
+                console.log("Inserted ID:", [{ mockId: insertedMockId }]);
+
+                await router.push(`/dashboard/interview/${insertedMockId}`);
+                // const formatted = [
+                //     {
+                //         mockId: insertedMockId,
+                //     },
+                // ];
+                // console.log("Inserted ID:", formatted);
+            } else {
+                console.error("API returned error status");
+            }
         } catch (err) {
             console.error("API call failed:", err);
         }
+
+        setLoading(false); // Finish loading
+        setOpenDialog(false); // Now close dialog
+        // router.push('/dashboard/interview/'+dbResponse[0]?.mockId)
     };
+
+
 
 
     return (
@@ -116,7 +146,13 @@ function AddNewInterview (){
                                 >
                                     Cancel
                                 </Button>
-                                <Button  type ='submit' className='font-bold'>Start Interview</Button>
+                                <Button type='submit' disabled={loading} className='font-bold'>
+                                    {loading ? (
+                                        <> <LoaderCircle className='animate-spin' /> Generating from AI </>
+                                    ) : (
+                                        'Start Interview'
+                                    )}
+                                </Button>
                             </div>
                             </form>
                         </DialogHeader>
