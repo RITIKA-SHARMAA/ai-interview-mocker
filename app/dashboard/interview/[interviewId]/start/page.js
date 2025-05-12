@@ -5,12 +5,13 @@ import { MockInterview } from "../../../../../utils/schema";
 import {db} from "../../../../../utils/db";
 import {useParams} from "next/navigation";
 import QuestionSection from "../start/_components/QuestionSection";
+import RecordAnswerSection from "./_components/RecordAnswerSection"
 function StartInterviewPage() {
     const params = useParams();
     const interviewId = params.interviewId;
     const [interviewData, setInterviewData] = useState(null);
     const [mockInterviewQuestions, setMockInterviewQuestions] = useState([]);
-    const[activeQuestionIndex, setActiveQuestionIndex] = useState(3);
+    const[activeQuestionIndex, setActiveQuestionIndex] = useState(1);
 
     useEffect(() => {
         GetInterviewDetails();
@@ -49,10 +50,10 @@ function StartInterviewPage() {
             />
 
             {/*video and audio rec*/}
+            <RecordAnswerSection/>
 
-
-            <h1 className="text-5xl text-white font-bold mb-5">Start Interview</h1>
-            <p className="text-lg mb-5 text-white">Your interview is about to begin!</p>
+            {/*<h1 className="text-5xl text-white font-bold mb-5">Start Interview</h1>*/}
+            {/*<p className="text-lg mb-5 text-white">Your interview is about to begin!</p>*/}
 
         </div>
     );
